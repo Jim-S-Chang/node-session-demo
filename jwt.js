@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken')
-
 const NodeRSA = require('node-rsa');
 const key = new NodeRSA({ b: 2048 }); //生成2048位的密钥
 let publicDer = key.exportKey('pkcs1-public-pem'); //公钥

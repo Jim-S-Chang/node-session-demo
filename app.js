@@ -1,14 +1,11 @@
 const express = require('express')
 const bodyParser = require('body-parser')
-// let session = require('express-session')
-// let RedisStore = require('connect-redis')(session);
 const redis = require('redis');
 let redisClient = redis.createClient({
     host: '127.0.0.1',
     port: 6379
 })
 const JWT = require('./jwt')
-// const { Store } = require('express-session');
 const app = express()
 
 // 解决跨域
@@ -23,52 +20,35 @@ app.all("*", function(req, res, next) {
         next()
 })
 
-// app.use(session({
-//     name : "sessionId",
-//     secret : 'Jim_secret',
-//     resave : false,
-//     rolling: true,
-//     saveUninitialized : false,
-//     cookie : {
-//         maxAge: 1000 * 60,
-//         httpOnly: true
-//     },
-//     store : new RedisStore({client: redis.createClient({
-//         host: '127.0.0.1',
-//         port: 6379
-//     })})
-// }))
-
-// app.use((req, res, next) => {
-//     req.session.cookie.maxAge = 1000 * 60
-//     next()
-// })
-
 app.use(async (req, res, next) => {
     if (req.url != '/login') {
         let token = req.headers.token
         let userId = req.headers.userid
-        let tokenInRedis = await new Promise((resolve => {
-            redisClient.get(userId, function (err, res) {
-                if (err) {
-                    console.log(`err`, err);
-                } else {
-                    return resolve(res)
-                }
-            })
-        }))
-        
+        let tokenInRedis = ''
+        try {
+            tokenInRedis = await new Promise(((resolve, reject) => {
+                redisClient.get(userId, function (err, res) {
+                    if (err) {
+                        console.log(`err`, err)
+                        reject()
+                    } else {
+                        return resolve(res)
+                    }
+                })
+            }))
+        } catch (error) {
+            res.status(403)
+            res.send({msg: '登录已过期,请重新登录'})
+        }
         let jwtInRedis = new JWT(tokenInRedis)
         let resultInRedis = jwtInRedis.verifyToken()
         if (resultInRedis == 'err') {
-            console.log('resultInRedis', resultInRedis)
             res.status(403)
             res.send({msg: '登录已过期,请重新登录'})
         } else {
             let jwt = new JWT(token)
             let result = jwt.verifyToken()
             if (result == 'err') {
-                console.log('result',result)
                 res.status(403)
                 res.send({msg: '登录已过期,请重新登录'})
             }else {
@@ -85,10 +65,7 @@ app.get('/status', function (req, res) {
 })
 
 app.post('/login', bodyParser.json(), function(req, res) {
-    // console.log(`req.session`, req.session);
     const userInfo = { id:'12344', name: "Jim", address: "South Park", age: "18" }
-    // let expireTime = new Date().getTime() + 60000
-    // req.session.save()
     let jwt = new JWT(userInfo.name)
     let token = jwt.generateToken()
     redisClient.set(userInfo.id, token)
@@ -96,8 +73,11 @@ app.post('/login', bodyParser.json(), function(req, res) {
     res.setHeader('userid', userInfo.id)
     res.send({
         userInfo
-        // expireTime: new Date(expireTime).toISOString()
     })
+})
+
+app.post('/logout', function (req, res) {
+    res.send()
 })
 
 const server = app.listen(8080, function() {
